@@ -32,21 +32,23 @@ public class Renderer implements GLEventListener{
 	public static DisplayMode dm, dm_old;
 	private GLU glu = new GLU();
 
-	private Server serv = Server.getInstance();
 	private CameraAngleHandler cah = CameraAngleHandler.getInstance();
 
 	private List<Shape> s = new ArrayList<>();
 	private List<ModelShape> ms = new ArrayList<>();
 	
 	private Texture sky;
-	
 	private Model[] models = new Model[40];
 	
 	GLUquadric quad;
 	
+	private long lastTime;
+	
 	@Override
 	public void display(GLAutoDrawable drawable) {
 		final GL2 gl = drawable.getGL().getGL2();
+		
+		calculateFPS();
 		
 		gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
 		gl.glLoadIdentity();
@@ -68,11 +70,17 @@ public class Renderer implements GLEventListener{
 		gl.glFlush();
 	}
 
+	private void calculateFPS() {
+		float fps = 1000.f / (System.currentTimeMillis() - lastTime);
+		Server.getInstance().renderingFPS = fps;
+		lastTime = System.currentTimeMillis();
+	}
+
 	private void applyMovementAndRotation(final GL2 gl) {
 		float a = cah.getDistance();
 		
 		glu.gluLookAt(
-			-a * Math.sin(cah.getX()) + cah.getCx(), -a * Math.sin(cah.getY())+ cah.getCy(), -a * Math.cos(cah.getX()) + cah.getCz(),
+			-a * Math.sin(cah.getDelayedX()) + cah.getCx(), -a * Math.sin(cah.getY()) + cah.getCy(), -a * Math.cos(cah.getDelayedX()) + cah.getCz(),
 			0.0 + cah.getCx(), 0.0 + cah.getCy(), 0.0 + cah.getCz(),
 			0.0, 1.0, 0.0);
 		
@@ -80,7 +88,7 @@ public class Renderer implements GLEventListener{
 		*   first it changes camera coords, only then it changes quad coords.
 		*/
 		ms.get(0).setCoords(cah.getCx(), cah.getCy(), cah.getCz());
-		ms.get(0).setTilt(serv.getY() / 3.f, (float) Math.toDegrees(cah.getX()) - 90, serv.getX() / 3.f);
+		ms.get(0).setTilt(cah.getTX(), (float) Math.toDegrees(cah.getX()) - 90, cah.getTZ());
 		
 		//System.out.println(cah.getCx() + " " + cah.getCy() + " " + cah.getCz() + " ");
 	}

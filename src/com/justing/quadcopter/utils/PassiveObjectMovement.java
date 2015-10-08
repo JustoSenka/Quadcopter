@@ -34,7 +34,7 @@ public class PassiveObjectMovement {
 					
 					//ms.get(0).setCoords(cah.getCx(), cah.getCy(), cah.getCz()); // THIS IS NOW NEAR 'GLU LOOK AT'
 					
-					ms.get(0).setTilt(serv.getY() / 3.f, (float) Math.toDegrees(cah.getX()) - 90, serv.getX() / 3.f);
+					//ms.get(0).setTilt(serv.getY() / 3.f, (float) Math.toDegrees(cah.getX()) - 90, serv.getX() / 3.f);
 					
 					try {
 						Thread.sleep((int)(1000 / FPS));

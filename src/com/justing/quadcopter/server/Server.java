@@ -13,6 +13,8 @@ public class Server
 	private int x = 0, y = 0, z = 0;
 	private int turnLeft = 0, turnRight = 0, up = 0, down = 0;
 	
+	public float renderingFPS = 0; // Console Out ONLY
+	
 	private boolean run = false;
 	Thread t = null;
 	
@@ -43,7 +45,8 @@ public class Server
 							up = tryParse(temp[6]);
 							turnRight = tryParse(temp[7]);
 							
-							System.out.println(x + " " + y + " " + z + " ---- " + turnLeft + " <> " + turnRight + " : " + up + " ^V " + down);
+							System.out.println(x + " " + y + " " + z + " ---- " + turnLeft + " <> " + turnRight + " : "
+											 + up + " ^V " + down + String.format("  Rendering FPS: %.2f", renderingFPS));
 				        
 							try {
 								Thread.sleep((int)(1000 / FPS));

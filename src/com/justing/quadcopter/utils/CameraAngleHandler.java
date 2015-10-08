@@ -9,9 +9,12 @@ import com.justing.quadcopter.server.Server;
 
 public class CameraAngleHandler {
 	
-	public final static float SENSITIVITY = 1.5f;
-	public final static float MAX_MOVEMENT_SPEED = 4000;
+	public final static float MOUSE_SENSITIVITY = 1.5f;
+	public final static float PHONE_TILTING_SENSITIVITY = 0.8f;
+	public final static float MAX_MOVEMENT_SPEED = 1000;
 	public final static float MAX_ROTATION_SPEED = 1;
+	public final static float MAX_TILT = 45; // Degrees
+	public final static boolean CAMERA_DELAY_ON = true; // Delay camera movement when quad moves fast
 	public static final int FPS = 50;
 	
 	/**Note:
@@ -19,12 +22,19 @@ public class CameraAngleHandler {
 	 * gl.rotate() takes angles as degrees.
 	 * 
 	 */
-	private float x = 0, y = 0;  // Rotation modifiers
+	private float x = 0, y = 0;  // Rotation modifiers (Radians)
+	private float delayedX, delayedY;  // Delayed rotation modifiers for camera when quad moves fast (Radians)
+	private float lockedX; // locked x and y for camera when started rotating (Radians)
+	private int isLocekd; // used to deside whether lock x and y or not.
+	
 	private float cx = 85, cy = 0.2f, cz = 110;   // Coordinates of centered object
+	private float tiltX, tiltZ;  // Quad tilting rotation modifiers (Degrees)
+	
 	private float distanceFromObject = 30;
 	
 	private float speedCx, speedCy, speedCz;  // Speed for movement (C stands for coords)
-	private float speedX, speedY;   // Speed for rotation
+    private float speedX, speedY;   // Speed for rotation
+	private float speedTX, speedTZ; // Speed for tilting
 	
 	private float mouseX, mouseY;  // temp mouse pointer data
 	private float width, height;  
@@ -56,8 +66,11 @@ public class CameraAngleHandler {
 			public void run() {
 				while (run){
 					
+					calculateQuadTilting();
 					applyCameraRotation();
 					applyCameraMovement();
+					
+					calculateDelayedCameraRotation();
 					
 					try {
 						Thread.sleep((int)(1000 / FPS));
@@ -65,6 +78,30 @@ public class CameraAngleHandler {
 						e.printStackTrace();
 					}
 				}
+			}
+
+			private void calculateQuadTilting() {
+				
+				// 16% of speed will be left after 1 second (Running on 50 FPS)
+				speedTX *= 0.9065f; //0.965f;
+				speedTZ *= 0.9065f; //0.965f;
+				
+				speedTX += (serv.getY() * PHONE_TILTING_SENSITIVITY - tiltX) * 0.01f;
+				speedTZ += (serv.getX() * PHONE_TILTING_SENSITIVITY - tiltZ) * 0.01f;
+				
+				speedTX = (float) ((speedTX < 10) ? speedTX : 10);  
+				speedTZ = (float) ((speedTZ < 10) ? speedTZ : 10);
+			
+				tiltX += speedTX;
+				tiltZ += speedTZ;
+				
+				tiltX = (tiltX < MAX_TILT) ? tiltX : MAX_TILT;
+				tiltX = (tiltX > -MAX_TILT) ? tiltX : -MAX_TILT;
+				tiltZ = (tiltZ < MAX_TILT) ? tiltZ : MAX_TILT;
+				tiltZ = (tiltZ > -MAX_TILT) ? tiltZ : -MAX_TILT;
+				
+				if (tiltX == MAX_TILT || tiltX == -MAX_TILT) speedTX = 0;
+				if (tiltZ == MAX_TILT || tiltZ == -MAX_TILT) speedTZ = 0;
 			}
 
 			private void applyCameraRotation() {
@@ -75,8 +112,8 @@ public class CameraAngleHandler {
 		        mouseX = MouseInfo.getPointerInfo().getLocation().x;
 		        mouseY = MouseInfo.getPointerInfo().getLocation().y;
 				
-				x += (width / 2 - mouseX) * SENSITIVITY / width;
-				y += (height / 2 - mouseY) * SENSITIVITY / width;
+				x += (width / 2 - mouseX) * MOUSE_SENSITIVITY / width;
+				y += (height / 2 - mouseY) * MOUSE_SENSITIVITY / width;
 				
 				// KEYBOARD:
 				x -= (float)(aac.getDx() * 0.02f);
@@ -103,7 +140,7 @@ public class CameraAngleHandler {
 			}
 			
 			private void applyCameraMovement() {
-				final float speedModifier = (0.4f + aac.getShift() * 5.f) / 2000;
+				final float speedModifier = (0.4f + aac.getShift() * 5.f) / 500;
 				
 				calculateSpeedForMovement();  
 				
@@ -115,17 +152,42 @@ public class CameraAngleHandler {
 			private void calculateSpeedForMovement() {
 				
 				// 44.5% of speed will be left after 1 second (Running on 50 FPS)
-				speedCx *= 0.984f;
-				speedCy *= 0.984f;
-				speedCz *= 0.984f;
+				speedCx *= 0.960f;
+				speedCy *= 0.960f;
+				speedCz *= 0.960f;
 				
-				speedCx -= (float)(serv.getY() * Math.cos(x) + serv.getX() * Math.sin(x));
+				speedCx -= (float)(tiltX * Math.cos(x) + tiltZ * Math.sin(x));
 				speedCy += (float)(serv.getLift() * 50);
-				speedCz -= (float)(serv.getX() * Math.cos(x) - serv.getY() * Math.sin(x));
+				speedCz -= (float)(tiltZ * Math.cos(x) - tiltX * Math.sin(x));				
 				
 				speedCx = (speedCx < MAX_MOVEMENT_SPEED) ? speedCx : MAX_MOVEMENT_SPEED;  
 				speedCy = (speedCy < MAX_MOVEMENT_SPEED) ? speedCy : MAX_MOVEMENT_SPEED;  
 				speedCz = (speedCz < MAX_MOVEMENT_SPEED) ? speedCz : MAX_MOVEMENT_SPEED;
+			}
+			
+			private void calculateDelayedCameraRotation() {
+				checkIfLocked();
+				if (CAMERA_DELAY_ON){
+					delayedX = x - (10 * speedX);
+					delayedY = y - (10 * speedY);
+					
+					// not fully implemented, need fixes, temporary disabled
+					//if (isLocekd == -1 && delayedX < lockedX) delayedX = lockedX;
+					//if (isLocekd ==  1 && delayedX > lockedX) delayedX = lockedX;
+					
+				} else {
+					delayedX = x;
+					delayedY = y;
+				}
+			}
+
+			private void checkIfLocked() {
+				if (isLocekd != serv.getTurn() && serv.getTurn() != 0){
+					isLocekd = serv.getTurn();
+					lockedX = x;
+				} else if (serv.getTurn() == 0){
+					isLocekd = 0;
+				}
 			}
 		});
 	}
@@ -143,5 +205,9 @@ public class CameraAngleHandler {
 	public float getCx() {return cx;}
 	public float getCy() {return cy;}
 	public float getCz() {return cz;}
+	public float getTX() {return tiltX;}
+	public float getTZ() {return tiltZ;}
+	public float getDelayedX() {return delayedX;}
+	public float getDelayedY() {return delayedY;}
 	public float getDistance() {return distanceFromObject;}
 }
